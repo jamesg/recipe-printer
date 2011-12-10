@@ -208,12 +208,10 @@ void print_ingredient(struct ingredient_t* ingredient) {
 }
 
 void printn(char* s, int n) {
-	int i = 0;
+	int i = printf(s);
 	for (; i < n; i++) {
-		if (s[i] == '\0') printf(".");
-		else printf("%c", s[i]);
+		printf(" ");
 	}
-	printf("\n");
 }
 
 int max_depth(struct ingredient_t* ingredient) {
@@ -245,10 +243,11 @@ void print_recipe(struct ingredient_t* ingredient) {
 	while (i != 0) {
 		if ((*i).next != 0) {
 			print_recipe((*i).ingredient);
-			printf("%d %s\n", (*((*i).ingredient)).column, (*((*i).ingredient)).label);
+			printn((*((*i).ingredient)).label,20);
+			printf("\n");
 		} else {
 			print_recipe((*i).ingredient);
-			printf("%d %s          ", (*((*i).ingredient)).column, (*((*i).ingredient)).label);
+			printn((*((*i).ingredient)).label,20);
 		}
 		i = (*i).next;
 	}
@@ -281,12 +280,11 @@ int main(int argc, char* args[]) {
 
 	ddlparse(dish, &working_buffer);
 
-	printn(buffer, filesize);
-
 	assign_columns(dish);
 	print_ingredient(dish);
 	printf("\n");
 	print_recipe(dish);
+	printf("\n");
 	
 	return 0;
 }
