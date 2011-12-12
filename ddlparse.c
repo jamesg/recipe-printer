@@ -1,12 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <string.h>
 
 #ifndef max
 	#define max( a, b ) ( ((a) > (b)) ? (a) : (b) )
 #endif
 
-#define STREAM_DEBUG stdout
+#define INGREDIENT_LENGTH 20
 
 struct list_t {
 	struct ingredient_t* ingredient;
@@ -19,12 +20,19 @@ struct ingredient_t {
 	int column;
 };
 
+struct recipe_buffer_t {
+	char* buffer;
+	int height;
+	int width;
+	int ingredient_length;
+};
+
 struct ingredient_t* dish;
 
 void* malloc_chk(size_t size) {
 	void* v = 0;
 	if ((v = malloc(size)) == 0) {
-		fprintf(STREAM_DEBUG, "Error allocating memory\n");
+		fprintf(stderr, "Error allocating memory\n");
 		exit(1);
 	}
 	return v;
@@ -35,13 +43,20 @@ void* malloc_chk(size_t size) {
 struct list_t* malloc_list_item(struct list_t** head) {
 	struct list_t* list = malloc_chk(sizeof(struct list_t));
 	(*list).ingredient = 0;
-	if ((*head) != 0) {
+	if (head != 0) {
 		(*list).next = *head;
 		*head = list;
 	} else {
 		(*list).next = 0;
 	}
 	return list;
+}
+
+struct list_t* list_next(struct list_t* l) {
+	if (l == 0) {
+		return 0;
+	}
+	return (*l).next;
 }
 
 // Allocate memory for an ingredient and add it to parent
@@ -59,6 +74,32 @@ struct ingredient_t* malloc_ingredient(struct ingredient_t* parent) {
 	}
 
 	return new_ingredient;
+}
+
+struct recipe_buffer_t* malloc_recipe_buffer(int height, int width, int ingredient_length) {
+	struct recipe_buffer_t* rb = malloc_chk(sizeof(struct recipe_buffer_t));
+	(*rb).buffer = malloc_chk(height* ((width*ingredient_length)+1) +1);
+	memset((*rb).buffer, (int)' ',  height* ((width*ingredient_length)+1) );
+	int i;
+	for (i = 0; i < height; i++) {
+		(*rb).buffer[ i*((width*ingredient_length)+1) + (width*ingredient_length) ] = '\n';
+	}
+	(*rb).buffer[height* ((width*ingredient_length)+1)] = '\0';
+	(*rb).height = height;
+	(*rb).width = width;
+	(*rb).ingredient_length = ingredient_length;
+	return rb;
+}
+
+void free_recipe_buffer(struct recipe_buffer_t* rb) {
+	free((*rb).buffer);
+	free(rb);
+}
+
+char* recipe_buffer_pointer(struct recipe_buffer_t* rb, int row, int column) {
+	return (*rb).buffer
+	+ (((*rb).width * (*rb).ingredient_length)+1)*row
+	+ (column*(*rb).ingredient_length);
 }
 
 // Get the first item in the list of sub ingredients
@@ -207,15 +248,49 @@ void print_ingredient(struct ingredient_t* ingredient) {
 	}
 }
 
+// Print up to n characters of a string.  If there are fewer than
+// n characters print additional spaces.
 void printn(char* s, int n) {
-	int i = printf(s);
+	int i = 0;
+	// Print string up to n characters
+	while (s != 0 && i < n) {
+		if (s[i] == '\0') {
+			break;
+		}
+		printf("%c", s[i]);
+		i++;
+	}
+	// Fill remaining characters
 	for (; i < n; i++) {
 		printf(" ");
 	}
 }
 
+void printn_border_right(char *s, int n) {
+	printn(s, n-1);
+	printf("|");
+}
+
+void printn_border_left(char *s, int n) {
+	printf("|");
+	printn(s, n-1);
+}
+
+void printn_border_both(char *s, int n) {
+	printf("|");
+	printn(s, n-2);
+	printf("|");
+}
+
+void print_dashed_line(int n) {
+	int i = 0;
+	for (; i < n; i++) {
+		printf("-");
+	}
+}
+
 int max_depth(struct ingredient_t* ingredient) {
-	int depth = 1;
+	int depth = 0;
 
 	struct list_t* i = (*ingredient).ingredient_list;
 	while (i != 0) {
@@ -225,48 +300,161 @@ int max_depth(struct ingredient_t* ingredient) {
 	return depth;
 }
 
-// Assign column numbers to ingredients
-int assign_columns(struct ingredient_t* ingredient) {
+int count_basic_ingredients(struct ingredient_t* ingredient) {
 	struct list_t* i = (*ingredient).ingredient_list;
-
-	while (i != 0) {
-		int t = assign_columns((*i).ingredient);
-		(*ingredient).column = max((*ingredient).column, t+1);
-		i = (*i).next;
+	if (i == 0) {
+		return 1;
+	} else {
+		int c = 0;
+		while (i != 0) {
+			c += count_basic_ingredients((*i).ingredient);
+			i = (*i).next;
+		}
+		return c;
 	}
-	return (*ingredient).column;
+}
+
+void sprintn(char* s, char* d, int n) {
+	if (s == 0) return;
+	int i;
+	for (i = 0; i < n; i++) {
+		if (s[i] == '\0') return;
+		d[i] = s[i];
+	}
+}
+
+void sprint_dashed(char* d, int n) {
+	int i;
+	for (i = 0; i < n; i++) {
+		d[i] = '-';
+	}
+}
+
+/*
+ * Recipe printing "algorithm"
+ * 
+ * -------------------------------------------------
+ * Aubergine   | Slice     |       |       |       |
+ * -------------------------       |       |       |
+ * Flour                   | Coat  |       |       |
+ * ---------------------------------       |       |
+ * Egg         | Whisk             | Coat  | Fry   |
+ * -------------------------------------------------
+ * 
+ * . Move labels as far to the right as possible.
+ * 
+ */
+void print_recipe_buffer(struct ingredient_t* ingredient, struct recipe_buffer_t* buffer, int* row) {
+	// hey, look, an algorithm!
+	int orig_row = *row;
+	struct list_t* i;
+	for (i = (*ingredient).ingredient_list; i != 0; i = (*i).next) {
+		print_recipe_buffer((*i).ingredient, buffer, row);
+		for (; orig_row <= *row; orig_row++) {
+			*(recipe_buffer_pointer(buffer, orig_row, ((*ingredient).column)) -1) = '|';
+		}
+		if ((*i).next != 0) {
+			(*row)++;
+			sprint_dashed(recipe_buffer_pointer(buffer, *row, 0), (*buffer).ingredient_length*(*ingredient).column);
+			(*row)++;
+		}
+	}
+	sprintn((*ingredient).label, recipe_buffer_pointer(buffer, *row, (*ingredient).column), (*buffer).ingredient_length);
 }
 
 void print_recipe(struct ingredient_t* ingredient) {
-	struct list_t* i = (*ingredient).ingredient_list;
+	struct recipe_buffer_t* buffer = malloc_recipe_buffer(count_basic_ingredients(ingredient)*2 +1, (*ingredient).column+1, INGREDIENT_LENGTH);
+	
+	int row = 1;
+	print_recipe_buffer(ingredient, buffer, &row);
+	
+	// right border
+	int i;
+	for (i = 0; i < (*buffer).height; i++) {
+		*(recipe_buffer_pointer(buffer, i, ((*buffer).width)) -1) = '|';
+	}
 
-	while (i != 0) {
-		if ((*i).next != 0) {
-			print_recipe((*i).ingredient);
-			printn((*((*i).ingredient)).label,20);
-			printf("\n");
+	// top, bottom borders
+	sprint_dashed((*buffer).buffer, (*buffer).width*(*buffer).ingredient_length);
+	sprint_dashed(recipe_buffer_pointer(buffer, (*buffer).height-1, 0), (*buffer).width*(*buffer).ingredient_length);
+	
+	printf((*buffer).buffer);
+}
+
+/*void print_recipe(struct list_t* ingredient_list, int width, int width_above) {
+	struct list_t* dl = ingredient_list;
+	while (dl != 0) {
+		struct ingredient_t* ingredient = (*dl).ingredient;
+		
+		print_recipe((*ingredient).ingredient_list, width, (*ingredient).column);
+		
+		if ((*ingredient).column == width_above-1) {
+			printn_border_right((*ingredient).label, 15);
 		} else {
-			print_recipe((*i).ingredient);
-			printn((*((*i).ingredient)).label,20);
+			printn((*ingredient).label, 15);
+		}
+		if ((*dl).next == 0) {
+			// method will follow
+		} else {
+			// print blanks and borders
+			int i;
+			for (i = (*ingredient).column; i < width_above - (*ingredient).column; i++) {
+				printn(0, 15);
+			}
+			for (; i < width; i++) {
+				printn_border_right(0, 15);
+			}
+			printf("\n");
+		}
+		dl = (*dl).next;
+	}
+}*/
+
+// Assign column numbers to ingredients
+int assign_columns(struct ingredient_t* ingredient) {
+	struct list_t* i;
+	
+	i = (*ingredient).ingredient_list;
+	
+	// Find the maximum height for sub ingredients
+	int mh = 0;
+	while (i != 0) {
+		mh = max(mh, max_depth((*i).ingredient));
+		i = (*i).next;
+	}
+	
+	// Assign this height to all sub ingredients
+	i = (*ingredient).ingredient_list;
+	while (i != 0) {
+		// basic ingredient
+		if ( (*((*i).ingredient)).ingredient_list == 0) {
+			(*((*i).ingredient)).column = 0;
+		} else {
+//			(*((*i).ingredient)).column = mh;
+			assign_columns( (*i).ingredient );
 		}
 		i = (*i).next;
 	}
+	
+	(*ingredient).column = mh +1;
+
+	return (*ingredient).column;
 }
 
 int main(int argc, char* args[]) {
 	if (argc != 2) {
-		fprintf(STREAM_DEBUG, "Usage: ddlparse filename\n");
+		fprintf(stderr, "Usage: ddlparse filename\n");
 		exit(1);
 	}
 	struct stat stat_d;
 	if ((stat(args[1], &stat_d)) != 0) {
-		fprintf(STREAM_DEBUG, "File not found\n");
+		fprintf(stderr, "File not found\n");
 		exit(1);
 	}
 
 	char* buffer = 0;
 	if ((buffer = malloc((stat_d.st_blocks*stat_d.st_blksize)+1)) == 0) {
-		fprintf(STREAM_DEBUG, "Could not allocate memory\n");
+		fprintf(stderr, "Could not allocate memory\n");
 		exit(1);
 	}
 
@@ -281,11 +469,7 @@ int main(int argc, char* args[]) {
 	ddlparse(dish, &working_buffer);
 
 	assign_columns(dish);
-	print_ingredient(dish);
-	printf("\n");
 	print_recipe(dish);
-	printf("\n");
-	
 	return 0;
 }
 
