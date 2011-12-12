@@ -7,7 +7,7 @@
 	#define max( a, b ) ( ((a) > (b)) ? (a) : (b) )
 #endif
 
-#define INGREDIENT_LENGTH 30
+#define INGREDIENT_LENGTH 25
 
 struct list_t {
 	struct ingredient_t* ingredient;
@@ -315,14 +315,15 @@ int count_basic_ingredients(struct ingredient_t* ingredient) {
 	}
 }
 
-void sprintn(char* s, char* d, int n) {
+char* sprintn(char* s, char* d, int n) {
 	if (s == 0) return;
 	int i;
 	for (i = 0; i < n-1; i++) {
-		if (s[i] == '\0') return;
+		if (s[i] == '\0') return &(s[i]);
 		// leave a space before the label
 		d[i+1] = s[i];
 	}
+	return &(s[i-1]);
 }
 
 void sprint_dashed(char* d, int n) {
@@ -352,8 +353,9 @@ void print_recipe_buffer(struct ingredient_t* ingredient, struct recipe_buffer_t
 	struct list_t* i;
 	for (i = (*ingredient).ingredient_list; i != 0; i = (*i).next) {
 		print_recipe_buffer((*i).ingredient, buffer, row);
-		for (; orig_row <= *row; orig_row++) {
-			*(recipe_buffer_pointer(buffer, orig_row, ((*ingredient).column)) -1) = '|';
+		int ii;
+		for (ii = orig_row; ii <= *row; ii++) {
+			*(recipe_buffer_pointer(buffer, ii, ((*ingredient).column)) -1) = '|';
 		}
 		if ((*i).next != 0) {
 			(*row)++;
@@ -361,7 +363,12 @@ void print_recipe_buffer(struct ingredient_t* ingredient, struct recipe_buffer_t
 			(*row)++;
 		}
 	}
-	sprintn((*ingredient).label, recipe_buffer_pointer(buffer, *row, (*ingredient).column), (*buffer).ingredient_length);
+	
+	char* s = (*ingredient).label;
+	int ii;
+	for (ii = orig_row; ii <= *row; ii++) {
+		s = sprintn(s, recipe_buffer_pointer(buffer, ii, (*ingredient).column), (*buffer).ingredient_length);
+	}
 }
 
 void print_recipe(struct ingredient_t* ingredient) {
@@ -384,35 +391,6 @@ void print_recipe(struct ingredient_t* ingredient) {
 	
 	free_recipe_buffer(buffer);
 }
-
-/*void print_recipe(struct list_t* ingredient_list, int width, int width_above) {
-	struct list_t* dl = ingredient_list;
-	while (dl != 0) {
-		struct ingredient_t* ingredient = (*dl).ingredient;
-		
-		print_recipe((*ingredient).ingredient_list, width, (*ingredient).column);
-		
-		if ((*ingredient).column == width_above-1) {
-			printn_border_right((*ingredient).label, 15);
-		} else {
-			printn((*ingredient).label, 15);
-		}
-		if ((*dl).next == 0) {
-			// method will follow
-		} else {
-			// print blanks and borders
-			int i;
-			for (i = (*ingredient).column; i < width_above - (*ingredient).column; i++) {
-				printn(0, 15);
-			}
-			for (; i < width; i++) {
-				printn_border_right(0, 15);
-			}
-			printf("\n");
-		}
-		dl = (*dl).next;
-	}
-}*/
 
 // Assign column numbers to ingredients
 int assign_columns(struct ingredient_t* ingredient) {
