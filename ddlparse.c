@@ -7,7 +7,7 @@
 	#define max( a, b ) ( ((a) > (b)) ? (a) : (b) )
 #endif
 
-#define INGREDIENT_LENGTH 20
+#define INGREDIENT_LENGTH 30
 
 struct list_t {
 	struct ingredient_t* ingredient;
@@ -131,6 +131,7 @@ void free_ingredient(struct ingredient_t* ingredient) {
 		}
 		i = n;
 	}
+	free(ingredient);
 }
 
 void print_list(struct list_t* l) {
@@ -317,9 +318,10 @@ int count_basic_ingredients(struct ingredient_t* ingredient) {
 void sprintn(char* s, char* d, int n) {
 	if (s == 0) return;
 	int i;
-	for (i = 0; i < n; i++) {
+	for (i = 0; i < n-1; i++) {
 		if (s[i] == '\0') return;
-		d[i] = s[i];
+		// leave a space before the label
+		d[i+1] = s[i];
 	}
 }
 
@@ -379,6 +381,8 @@ void print_recipe(struct ingredient_t* ingredient) {
 	sprint_dashed(recipe_buffer_pointer(buffer, (*buffer).height-1, 0), (*buffer).width*(*buffer).ingredient_length);
 	
 	printf((*buffer).buffer);
+	
+	free_recipe_buffer(buffer);
 }
 
 /*void print_recipe(struct list_t* ingredient_list, int width, int width_above) {
@@ -467,9 +471,14 @@ int main(int argc, char* args[]) {
 	struct ingredient_t* dish = malloc_ingredient(0);
 
 	ddlparse(dish, &working_buffer);
-
 	assign_columns(dish);
 	print_recipe(dish);
+	
+	
+	free_ingredient(dish);
+	free(buffer);
+	free(file);
+	
 	return 0;
 }
 
