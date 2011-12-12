@@ -424,27 +424,35 @@ int assign_columns(struct ingredient_t* ingredient) {
 }
 
 int main(int argc, char* args[]) {
-	if (argc != 2) {
-		fprintf(stderr, "Usage: ddlparse filename\n");
+	if (argc > 2) {
+		fprintf(stderr, "Usage: ddlparse [filename]\n");
 		exit(1);
 	}
-	struct stat stat_d;
-	if ((stat(args[1], &stat_d)) != 0) {
-		fprintf(stderr, "File not found\n");
-		exit(1);
-	}
-
+	
 	char* buffer = 0;
-	if ((buffer = malloc((stat_d.st_blocks*stat_d.st_blksize)+1)) == 0) {
-		fprintf(stderr, "Could not allocate memory\n");
-		exit(1);
+	long filesize = 0;
+	if (argc == 1) {
+		char tmp[1024];
+		buffer = malloc_chk(1024);
+		
+		while (fgets(tmp,1024,stdin)) {
+			filesize += strlen(tmp);
+			buffer = realloc(buffer,filesize);
+			strcat(buffer,tmp);
+		}
+	} else if (argc == 2) {
+		struct stat stat_d;
+		if ((stat(args[1], &stat_d)) != 0) {
+			fprintf(stderr, "File not found\n");
+			exit(1);
+		}
+		buffer = malloc_chk((stat_d.st_blocks*stat_d.st_blksize)+1);
+		FILE* file = fopen(args[1], "r");
+		filesize = fread(buffer,sizeof(char),(stat_d.st_blocks*stat_d.st_blksize),file);
+		fclose(file);
+		buffer[filesize] = 0;
 	}
-
-	FILE* file = fopen(args[1], "r");
-	long filesize = fread(buffer,sizeof(char),(stat_d.st_blocks*stat_d.st_blksize),file);
-
-	buffer[filesize] = 0;
-
+	
 	char* working_buffer = buffer;
 	struct ingredient_t* dish = malloc_ingredient(0);
 
@@ -455,8 +463,6 @@ int main(int argc, char* args[]) {
 	
 	free_ingredient(dish);
 	free(buffer);
-	free(file);
 	
 	return 0;
 }
-
