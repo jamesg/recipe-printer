@@ -12,7 +12,7 @@
 #endif
 
 #define INGREDIENT_LENGTH 25
-#define SCREEN_WIDTH 120
+#define SCREEN_WIDTH 80
 
 struct list_t {
 	struct ingredient_t* ingredient;
@@ -377,7 +377,7 @@ void print_recipe_buffer(struct ingredient_t* ingredient, struct recipe_buffer_t
 }
 
 void print_recipe(struct ingredient_t* ingredient) {
-	struct recipe_buffer_t* buffer = malloc_recipe_buffer(count_basic_ingredients(ingredient)*2 +1, (*ingredient).column+1, min(INGREDIENT_LENGTH, SCREEN_WIDTH/max_depth(ingredient)));
+	struct recipe_buffer_t* buffer = malloc_recipe_buffer(count_basic_ingredients(ingredient)*2 +1, (*ingredient).column+1, min(INGREDIENT_LENGTH, SCREEN_WIDTH/(max_depth(ingredient)+1)));
 	
 	int row = 1;
 	print_recipe_buffer(ingredient, buffer, &row);
